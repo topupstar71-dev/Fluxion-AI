@@ -1,0 +1,139 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Stores user account information, credits, and subscription plan.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "name": { "type": "string", "description": "User's full name" },
+        "birthday": { "type": "string", "description": "User's birthday (YYYY-MM-DD)" },
+        "plan": { "type": "string", "enum": ["free", "standard", "customizable", "extended"], "description": "Subscription plan" },
+        "credits": { "type": "number", "description": "Remaining AI credits" },
+        "expire_date": { "type": "string", "format": "date-time", "description": "Plan expiration date" },
+        "role": { "type": "string", "enum": ["user", "admin"], "description": "User role" },
+        "last_login": { "type": "string", "format": "date-time", "description": "Last login timestamp" },
+        "referral_code": { "type": "string", "description": "User's unique referral code" },
+        "referred_by": { "type": "string", "description": "UID of the user who referred this user" }
+      },
+      "required": ["uid", "name", "plan", "credits", "role"]
+    },
+    "Chat": {
+      "title": "Chat Session",
+      "description": "Represents a conversation between a user and the AI.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "UID of the user who owns this chat" },
+        "title": { "type": "string", "description": "Title of the chat" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp" }
+      },
+      "required": ["userId", "title"]
+    },
+    "Message": {
+      "title": "Chat Message",
+      "description": "A single message within a chat session.",
+      "type": "object",
+      "properties": {
+        "chatId": { "type": "string", "description": "ID of the parent chat" },
+        "role": { "type": "string", "enum": ["user", "assistant"], "description": "Sender role" },
+        "content": { "type": "string", "description": "Message content (text or image URL)" },
+        "type": { "type": "string", "enum": ["text", "image"], "description": "Message type" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "Message timestamp" }
+      },
+      "required": ["chatId", "role", "content", "type"]
+    },
+    "PaymentRequest": {
+      "title": "Payment Request",
+      "description": "Manual payment verification request for plans.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "UID of the user" },
+        "userName": { "type": "string", "description": "User's name" },
+        "userEmail": { "type": "string", "description": "User's email" },
+        "planId": { "type": "number", "description": "ID of the requested plan" },
+        "planName": { "type": "string", "description": "Name of the requested plan" },
+        "price": { "type": "number", "description": "Price paid" },
+        "method": { "type": "string", "description": "Payment method (e.g., bKash, Rocket)" },
+        "transactionId": { "type": "string", "description": "Transaction ID from the provider" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"], "description": "Request status" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Request timestamp" }
+      },
+      "required": ["userId", "planId", "method", "transactionId", "status"]
+    },
+    "CreditLog": {
+      "title": "Credit Log",
+      "description": "Tracks credit usage and additions for each user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "UID of the user" },
+        "amount": { "type": "number", "description": "Amount of credits changed (positive or negative)" },
+        "reason": { "type": "string", "description": "Reason for the credit change (e.g., 'Daily Claim', 'Chat Usage', 'Plan Upgrade')" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "Timestamp of the change" }
+      },
+      "required": ["userId", "amount", "reason", "timestamp"]
+    },
+    "Project": {
+      "title": "AI Project",
+      "description": "Stores generated multi-file web projects (apps/games).",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "UID of the user" },
+        "name": { "type": "string", "description": "Project name" },
+        "description": { "type": "string", "description": "Project description" },
+        "files": { "type": "object", "description": "Map of filename to content" },
+        "mainFile": { "type": "string", "description": "Entry point file" },
+        "prompt": { "type": "string", "description": "AI prompt used" },
+        "isPublic": { "type": "boolean", "description": "Whether the project is shared with the community" },
+        "authorName": { "type": "string", "description": "Name of the author" },
+        "authorPhoto": { "type": "string", "description": "Photo URL of the author" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["userId", "name", "files", "mainFile"]
+    },
+    "UserStats": {
+      "title": "User Statistics",
+      "description": "Tracks user activity, levels, and experience points.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "UID of the user" },
+        "level": { "type": "number", "description": "User's current level" },
+        "xp": { "type": "number", "description": "User's experience points" },
+        "projectsCreated": { "type": "number", "description": "Total projects generated" },
+        "messagesSent": { "type": "number", "description": "Total messages sent" },
+        "imagesGenerated": { "type": "number", "description": "Total images generated" }
+      },
+      "required": ["userId", "level", "xp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile documents"
+    },
+    "/chats/{chatId}": {
+      "schema": "Chat",
+      "description": "Chat session documents"
+    },
+    "/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Individual chat messages"
+    },
+    "/payment_requests/{requestId}": {
+      "schema": "PaymentRequest",
+      "description": "Manual payment verification requests"
+    },
+    "/credit_logs/{logId}": {
+      "schema": "CreditLog",
+      "description": "Logs of user credit changes"
+    },
+    "/projects/{projectId}": {
+      "schema": "Project",
+      "description": "Generated AI projects"
+    },
+    "/user_stats/{userId}": {
+      "schema": "UserStats",
+      "description": "User activity and level tracking"
+    }
+  }
+}

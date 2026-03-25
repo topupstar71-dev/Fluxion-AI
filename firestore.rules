@@ -1,0 +1,104 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.uid == "MSuyXdJTneZThzj3CP5wWTQbVzm1" ||
+        request.auth.uid == "uehxsf7qmyewebqydddjpb" ||
+        request.auth.uid == "QWGuFU4ulMVjCWNMUUOHqmKImsF3" ||
+        request.auth.token.email == "topupstar71@gmail.com" ||
+        request.auth.token.email == "saifulislam.20100409@fluxion.ai"
+      );
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'name', 'plan', 'credits', 'role']) &&
+             data.uid is string &&
+             data.name is string &&
+             data.plan in ['free', 'standard', 'customizable', 'extended'] &&
+             data.credits is number &&
+             data.role in ['user', 'admin'];
+    }
+
+    function isValidCreditLog(data) {
+      return data.keys().hasAll(['userId', 'amount', 'reason', 'timestamp']) &&
+             data.userId is string &&
+             data.amount is number &&
+             data.reason is string &&
+             data.timestamp is string;
+    }
+
+    function isValidChat(data) {
+      return data.keys().hasAll(['userId', 'title', 'createdAt', 'updatedAt']) &&
+             data.userId is string &&
+             data.title is string &&
+             (!('isButterflySession' in data) || data.isButterflySession is bool);
+    }
+
+    function isValidMessage(data) {
+      return data.keys().hasAll(['chatId', 'userId', 'role', 'content', 'type', 'timestamp']) &&
+             data.chatId is string &&
+             data.userId is string &&
+             data.role in ['user', 'assistant'] &&
+             data.content is string &&
+             data.type in ['text', 'image'];
+    }
+
+    function isValidPaymentRequest(data) {
+      return data.keys().hasAll(['userId', 'userName', 'userEmail', 'planId', 'planName', 'price', 'method', 'transactionId', 'status', 'createdAt']) &&
+             data.userId is string &&
+             data.userName is string &&
+             data.userEmail is string &&
+             data.planId is number &&
+             data.planName is string &&
+             data.price is number &&
+             data.method is string &&
+             data.transactionId is string &&
+             data.status in ['pending', 'approved', 'rejected'] &&
+             data.createdAt is string;
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read, write: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+    }
+
+    match /chats/{chatId} {
+      allow read, write: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid);
+    }
+
+    match /messages/{messageId} {
+      allow read, write: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid);
+    }
+
+    match /payment_requests/{requestId} {
+      allow read, create: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    match /credit_logs/{logId} {
+      allow read: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+
+    // Global Admin Access - Fallback
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "Fluxion AI",
+  "description": "A premium AI chat experience featuring high-quality text generation, image creation, voice interaction, and secure user authentication.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}
