@@ -139,7 +139,6 @@ async function startServer() {
 
       // Fallback to Pollinations.ai (Server-side to avoid CORS and get base64)
       console.log("Using Pollinations.ai fallback for generation:", prompt);
-      // Updated model list with more reliable ones
       const models = ['flux', 'flux-realism', 'flux-anime', 'flux-3d', 'any-dark', 'turbo'];
       let lastError = "Could not connect to any AI image models.";
 
@@ -149,7 +148,6 @@ async function startServer() {
           const seed = Math.floor(Math.random() * 1000000);
           const timeout = model === 'flux' ? 30000 : 20000;
           
-          // Using the more robust /p/ endpoint which handles redirects and parameters better
           const pollinationsUrl = `https://pollinations.ai/p/${encodeURIComponent(prompt)}?width=${width}&height=${height}&seed=${seed}&model=${model}&nologo=true`;
           
           const pollRes = await fetch(pollinationsUrl, {
@@ -217,8 +215,7 @@ async function startServer() {
         console.warn("Colab edit failed, falling back.");
       }
 
-      // Fallback: For now, just generate a new image based on the prompt
-      // (True img2img fallback is complex without a local model)
+      // Fallback
       console.log("Using Pollinations fallback for edit:", prompt);
       const models = ['flux', 'flux-realism', 'flux-anime', 'flux-3d', 'any-dark', 'turbo'];
       let lastError = "Image editing failed on all models.";
@@ -313,7 +310,7 @@ async function startServer() {
                 name: `${plan.name} Plan`,
                 description: `${plan.credits} Credits / Month`,
               },
-              unit_amount: plan.price * 100, // Stripe expects amount in cents/paisa
+              unit_amount: plan.price * 100,
             },
             quantity: 1,
           },
@@ -345,7 +342,6 @@ async function startServer() {
       const session = await stripeClient.checkout.sessions.retrieve(sessionId);
 
       if (session.payment_status === "paid") {
-        // Securely update user plan in Firestore using admin SDK if available
         const adminSdk = getFirebaseAdmin();
         if (adminSdk && adminSdk.apps.length > 0) {
           const db = adminSdk.firestore();
@@ -368,7 +364,6 @@ async function startServer() {
             return res.json({ success: true });
           }
         }
-        // If admin SDK not available, we'll handle it client-side (less secure but works for demo)
         return res.json({ success: true, message: "Payment verified, please update client-side" });
       }
       res.status(400).json({ error: "Payment not completed" });
@@ -386,11 +381,13 @@ async function startServer() {
       appType: "spa",
     });
     app.use(vite.middlewares);
-    console.log("Vite middleware attached.");
   } else {
-    app.use(express.static(path.join(__dirname, "dist")));
+    // In production on Vercel, static files are served by Vercel's edge network.
+    // We only need to handle API routes here.
+    // However, for local production testing, we can keep this:
+    app.use(express.static(path.join(__dirname, "..", "dist")));
     app.get("*", (req, res) => {
-      res.sendFile(path.join(__dirname, "dist", "index.html"));
+      res.sendFile(path.join(__dirname, "..", "dist", "index.html"));
     });
   }
 
