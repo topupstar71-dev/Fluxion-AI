@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import Stripe from "stripe";
 import admin from "firebase-admin";
 import dotenv from "dotenv";
+import { onRequest } from "firebase-functions/v2/https";
 
 dotenv.config();
 
@@ -382,9 +383,7 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    // In production on Vercel, static files are served by Vercel's edge network.
-    // We only need to handle API routes here.
-    // However, for local production testing, we can keep this:
+    // In production, static files are served by Hosting
     app.use(express.static(path.join(__dirname, "..", "dist")));
     app.get("*", (req, res) => {
       res.sendFile(path.join(__dirname, "..", "dist", "index.html"));
@@ -411,6 +410,15 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 // Export for Vercel
+export const api = onRequest({
+  memory: "1GiB",
+  timeoutSeconds: 60,
+  region: "us-central1"
+}, async (req, res) => {
+  await serverPromise;
+  return app(req, res);
+});
+
 export default async (req: any, res: any) => {
   await serverPromise;
   return app(req, res);

@@ -2,7 +2,6 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
-import { AuthProvider } from './lib/AuthContext';
 
 // Global error listener for debugging white screens
 if (typeof window !== 'undefined') {
@@ -25,8 +24,6 @@ if (typeof window !== 'undefined') {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AuthProvider>
-      <App />
-    </AuthProvider>
+    <App />
   </StrictMode>,
 );

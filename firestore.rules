@@ -2,6 +2,40 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required) - Firebase Auth UID
+    //   - name: string (required) - User's full name
+    //   - birthday: string (optional) - User's birthday
+    //   - plan: string (required) - Subscription plan (free, standard, customizable, extended)
+    //   - credits: number (required) - Remaining credits
+    //   - role: string (required) - User role (user, admin)
+    //
+    // Collection: chats
+    // Document ID: {chatId}
+    // Fields:
+    //   - userId: string (required) - Owner UID
+    //   - title: string (required) - Chat title
+    //   - createdAt: timestamp (required) - Creation time
+    //   - updatedAt: timestamp (required) - Update time
+    //
+    // Collection: messages
+    // Document ID: {messageId}
+    // Fields:
+    //   - chatId: string (required) - Parent chat ID
+    //   - userId: string (required) - Sender UID
+    //   - role: string (required) - Sender role (user, assistant)
+    //   - content: string (required) - Message content
+    //   - type: string (required) - Message type (text, image)
+    //   - timestamp: timestamp (required) - Message time
+    //
+    // ===============================================================
+
+    // ===============================================================
     // Helper Functions
     // ===============================================================
     function isAuthenticated() {
@@ -14,36 +48,26 @@ service cloud.firestore {
     
     function isAdmin() {
       return isAuthenticated() && (
-        request.auth.uid == "MSuyXdJTneZThzj3CP5wWTQbVzm1" ||
-        request.auth.uid == "uehxsf7qmyewebqydddjpb" ||
-        request.auth.uid == "QWGuFU4ulMVjCWNMUUOHqmKImsF3" ||
-        request.auth.token.email == "topupstar71@gmail.com" ||
-        request.auth.token.email == "saifulislam.20100409@fluxion.ai"
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        (request.auth.token.email == "topupstar71@gmail.com" && request.auth.token.email_verified == true)
       );
     }
 
     function isValidUser(data) {
       return data.keys().hasAll(['uid', 'name', 'plan', 'credits', 'role']) &&
              data.uid is string &&
-             data.name is string &&
+             data.name is string && data.name.size() < 100 &&
              data.plan in ['free', 'standard', 'customizable', 'extended'] &&
              data.credits is number &&
              data.role in ['user', 'admin'];
     }
 
-    function isValidCreditLog(data) {
-      return data.keys().hasAll(['userId', 'amount', 'reason', 'timestamp']) &&
-             data.userId is string &&
-             data.amount is number &&
-             data.reason is string &&
-             data.timestamp is string;
-    }
-
     function isValidChat(data) {
       return data.keys().hasAll(['userId', 'title', 'createdAt', 'updatedAt']) &&
              data.userId is string &&
-             data.title is string &&
-             (!('isButterflySession' in data) || data.isButterflySession is bool);
+             data.title is string && data.title.size() < 200 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
     }
 
     function isValidMessage(data) {
@@ -51,8 +75,9 @@ service cloud.firestore {
              data.chatId is string &&
              data.userId is string &&
              data.role in ['user', 'assistant'] &&
-             data.content is string &&
-             data.type in ['text', 'image'];
+             data.content is string && data.content.size() < 10000 &&
+             data.type in ['text', 'image'] &&
+             data.timestamp is timestamp;
     }
 
     function isValidPaymentRequest(data) {
@@ -66,7 +91,7 @@ service cloud.firestore {
              data.method is string &&
              data.transactionId is string &&
              data.status in ['pending', 'approved', 'rejected'] &&
-             data.createdAt is string;
+             data.createdAt is timestamp;
     }
 
     // ===============================================================
@@ -74,31 +99,53 @@ service cloud.firestore {
     // ===============================================================
 
     match /users/{userId} {
-      allow read, write: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      // PII Protection: Only owner or admin can read/write
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) && request.resource.data.role == 'user' || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) && request.resource.data.role == resource.data.role || isAdmin());
     }
 
     match /chats/{chatId} {
-      allow read, write: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid);
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidChat(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && isValidChat(request.resource.data) && resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     match /messages/{messageId} {
-      allow read, write: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid);
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidMessage(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && isValidMessage(request.resource.data) && resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     match /payment_requests/{requestId} {
-      allow read, create: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid);
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidPaymentRequest(request.resource.data) && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isAdmin();
     }
 
     match /credit_logs/{logId} {
-      allow read: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid);
-      allow create: if isAuthenticated();
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isAdmin();
     }
 
-    // Global Admin Access - Fallback
+    match /projects/{projectId} {
+      allow read: if resource.data.isPublic == true || (isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin()));
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    match /user_stats/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+    }
+
+    // Default deny
     match /{document=**} {
-      allow read, write: if isAdmin();
+      allow read, write: if false;
     }
   }
 }

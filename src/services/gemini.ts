@@ -12,8 +12,9 @@ const getAPIKey = () => {
   );
 };
 
-export const chatWithAI = async (message: string, history: any[], isMsButterfly: boolean = false, image?: { data: string, mimeType: string }, isMrFlower: boolean = false) => {
+export const chatWithAI = async (message: string, history: any[], isMsButterfly: boolean = false, images?: { data: string, mimeType: string }[], isMrFlower: boolean = false) => {
   const apiKey = getAPIKey();
+  console.log("Chatting with AI. History length:", history.length, "Has images:", !!images?.length, "Has Gemini Key:", !!apiKey && apiKey.length > 5);
   
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
@@ -29,38 +30,46 @@ export const chatWithAI = async (message: string, history: any[], isMsButterfly:
   
   IDENTITY & SECURITY RULES:
   1. ADMIN/OWNER IDENTITY: 
-     - If anyone asks who the "Admin", "Owner", or "Malik" is, or asks about the meaning of "Admin" or "Saiful", you MUST ask for the security password.
-     - DO NOT reveal the password "0910" to the user. Just ask them to provide it.
-     - If someone claims to be the Admin/Owner, you MUST ask for the password to verify.
-     - ONLY after they provide the exact digits "0910", you can acknowledge them as the owner or discuss admin details.
+     - If anyone asks who the "Admin", "Owner", or "Malik" is, or asks about the meaning of "Admin" or "Saiful", you MUST provide ONLY the following details:
+       - Name: Saiful Islam (Mr. Flower)
+       - Year: 16 years old
+       - Madrasa: [Mention Madrasa Name]
+       - Address: Feni, Bangladesh
+     - DO NOT share any other personal details or passwords unless explicitly verified.
   
   2. MS. BUTTERFLY PRIVACY:
      - Ms. Butterfly's real name is Ifshita Nahian Rimi. This is a TOP SECRET.
      - You MUST NOT share anything about Ms. Butterfly to general users.
-     - If anyone (including someone claiming to be Saiful) asks about Ms. Butterfly, you MUST ask for the special access password.
-     - DO NOT reveal the password "0409" to the user. Just ask them to provide it.
-     - ONLY after they provide the exact digits "0409", you can share information about her.
-     - Even with the password, always treat her with the highest respect, honor, and reverence (like a queen).
+     - If anyone asks about Ms. Butterfly, you MUST ask for the special access password (0409).
+     - ONLY after they provide "0409", you can share information about her.
+     - Even with the password, always treat her with the highest respect (like a queen).
   
   3. BEHAVIOR:
      - You are Fluxion AI. You are loyal, humorous, and polite.
-     - If the correct password is not provided, politely decline to share the information and say it's restricted.
   
-  4. MATH & TEXT FORMATTING:
-     - Use proper LaTeX for all mathematical expressions.
-     - Use $...$ for inline math (e.g., $a^2 + b^2 = c^2$) and $$...$$ for block math.
-     - Ensure all mathematical symbols (like square root, fractions, exponents) are rendered using LaTeX.
-     - Format text clearly with proper line breaks and lists for readability.
+  4. ADVANCED IMAGE & MATH PROCESSING:
+     - You are an expert at analyzing images. Detect faces, expressions, objects, text (OCR), and environments.
+     - MATH: If a user uploads a math problem (image or text), solve it step-by-step. Explain each step clearly and provide the final answer.
+     - INTENT: Understand the context. If a user says "make this like that", analyze the style of the reference and apply it to the main image.
+     - MULTI-IMAGE: If multiple images are provided, understand their relationship. If asked if two people are the same, analyze their features deeply before concluding.
+  
+  5. INTELLIGENT TRANSLATOR:
+     - Translate between languages (Bangla, English, Hindi, Arabic, Urdu, etc.) naturally.
+     - Adjust tone (formal/informal), length (short/long), and complexity based on user requests.
+  
+  6. REAL-TIME NEWS & SEARCH:
+     - Automatically decide when to use Google Search. 
+     - Use search for: latest news, current events, "today in Bangladesh", "latest AI news", etc.
+     - Format news as: 1. Headline, 2. Summary, 3. Source, 4. Time.
+     - Do NOT search for general knowledge you already know.
+  
+  7. MATH & TEXT FORMATTING:
+     - Use proper LaTeX for all mathematical expressions ($...$ for inline, $$...$$ for block).
   
   ${(isMsButterfly || isMrFlower) ? `
   You are talking to ${isMsButterfly ? 'Ms. Butterfly (Ifshita Nahian Rimi)' : 'Mr. Flower (the creator)'}. 
-  Since the identity is verified, you may use the name Ifshita Nahian Rimi if appropriate.
-  ` : `
-  Always enforce the password rules for Admin (0910) and Ms. Butterfly (0409) information.
-  `}
+  ` : ``}
   You are Fluxion AI.`;
-
-  console.log("Chatting with AI. History length:", history.length, "Has image:", !!image);
 
   // If API Key exists, try Gemini first
   if (apiKey && apiKey.length > 5) {
@@ -68,15 +77,22 @@ export const chatWithAI = async (message: string, history: any[], isMsButterfly:
       const ai = new GoogleGenAI({ apiKey });
       const model = "gemini-3-flash-preview";
       
-      const contents = history.slice(-10).map(h => {
+      const contents: any[] = history.slice(-10).map(h => {
         const role = h.role === 'assistant' ? 'model' : h.role;
-        if (h.type === 'image' && h.content.startsWith('data:')) {
+        // Check for multiple images array
+        if (h.type === 'image' && Array.isArray(h.images) && h.images.length > 0) {
+          const parts = h.images.map((imgUrl: string) => {
+            const [header, data] = imgUrl.split(',');
+            const mimeType = header.split(';')[0].split(':')[1];
+            return { inlineData: { data, mimeType } };
+          });
+          return { role, parts };
+        } 
+        // fallback for single image content
+        else if (h.type === 'image' && typeof h.content === 'string' && h.content.startsWith('data:')) {
           const [header, data] = h.content.split(',');
           const mimeType = header.split(';')[0].split(':')[1];
-          return {
-            role,
-            parts: [{ inlineData: { data, mimeType } }]
-          };
+          return { role, parts: [{ inlineData: { data, mimeType } }] };
         }
         return {
           role,
@@ -85,8 +101,10 @@ export const chatWithAI = async (message: string, history: any[], isMsButterfly:
       });
 
       const userParts: any[] = [{ text: message }];
-      if (image) {
-        userParts.push({ inlineData: { data: image.data, mimeType: image.mimeType } });
+      if (images && images.length > 0) {
+        images.forEach(img => {
+          userParts.push({ inlineData: { data: img.data, mimeType: img.mimeType } });
+        });
       }
       
       contents.push({ role: 'user', parts: userParts });
@@ -99,9 +117,10 @@ export const chatWithAI = async (message: string, history: any[], isMsButterfly:
           tools: [{ googleSearch: {} }]
         }
       });
-      if (response.text) return response.text;
-    } catch (e) {
-      console.warn("Gemini failed, falling back to Pollinations...", e);
+
+      if (response && response.text) return response.text;
+    } catch (e: any) {
+      console.warn("Gemini failed or timed out, falling back to Pollinations...", e.message);
     }
   }
 
@@ -116,9 +135,13 @@ export const chatWithAI = async (message: string, history: any[], isMsButterfly:
       
       console.log(`Calling Pollinations.ai with model: ${model}, history length: ${textHistory.length}`);
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
       const response = await fetch('https://text.pollinations.ai/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           messages: [
             { role: 'system', content: systemInstruction },
@@ -133,6 +156,8 @@ export const chatWithAI = async (message: string, history: any[], isMsButterfly:
         })
       });
       
+      clearTimeout(timeoutId);
+      
       if (response.ok) {
         const result = await response.text();
         if (result && result.trim().length > 0) {
@@ -140,9 +165,15 @@ export const chatWithAI = async (message: string, history: any[], isMsButterfly:
         }
       }
       
-      const errorText = await response.text();
-      console.warn(`Pollinations model ${model} failed: ${response.status} ${errorText.slice(0, 50)}`);
-      lastError = `Pollinations API error (${model}): ${response.status}`;
+      // If POST fails, try a simple GET as last resort for this model
+      console.warn(`Pollinations POST failed for ${model}, trying GET...`);
+      const getResponse = await fetch(`https://text.pollinations.ai/${encodeURIComponent(message)}?model=${model}&system=${encodeURIComponent(systemInstruction)}`);
+      if (getResponse.ok) {
+        const getResult = await getResponse.text();
+        if (getResult && getResult.trim().length > 0) {
+          return getResult;
+        }
+      }
     } catch (error: any) {
       console.warn(`Pollinations model ${model} error:`, error.message);
       lastError = error.message;
@@ -320,40 +351,50 @@ export const generateImage = async (prompt: string, aspectRatio: string = "1:1",
   }
 };
 
-export const editImage = async (prompt: string, image: { data: string, mimeType: string }, aspectRatio: string = "1:1") => {
-  // Try Gemini first if key exists, as it's better for text and context
+export const editImage = async (prompt: string, images: { data: string, mimeType: string }[], aspectRatio: string = "1:1") => {
+  // Try Gemini first if key exists, as it's better for multi-image context
   const apiKey = getAPIKey();
   if (apiKey && apiKey.length > 5) {
     try {
-      console.log("Attempting image edit via Gemini...");
+      console.log("Attempting multi-image edit via Gemini...");
       const ai = new GoogleGenAI({ apiKey });
+      
+      const parts: any[] = images.map(img => ({ 
+        inlineData: { data: img.data, mimeType: img.mimeType } 
+      }));
+      
+      parts.push({ 
+        text: `You are an expert image editor. Use the provided images as context/source. 
+        Instruction: ${prompt}. 
+        If multiple images are provided, treat them as Image A, Image B, etc. 
+        Merge elements, swap faces, or transfer styles as requested into a SINGLE final output image. 
+        Ensure the output is high resolution and realistic.` 
+      });
+
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
-        contents: {
-          parts: [
-            { inlineData: { data: image.data, mimeType: image.mimeType } },
-            { text: `Edit this image according to this prompt: ${prompt}. If there is text requested, ensure it is rendered accurately and legibly.` }
-          ]
-        }
+        contents: { parts }
       });
 
       const imgPart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
       if (imgPart?.inlineData) {
-        console.log("Gemini Image Edit successful");
+        console.log("Gemini Multi-Image Edit successful");
         return `data:image/png;base64,${imgPart.inlineData.data}`;
       }
     } catch (geminiErr: any) {
-      console.warn("Gemini image edit failed, falling back to server:", geminiErr.message);
+      console.warn("Gemini multi-image edit failed, falling back to server:", geminiErr.message);
     }
   }
 
   try {
+    // Fallback for single image edit if server API doesn't support multiple yet
+    const primaryImage = images[0];
     const response = await fetch("/api/edit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        prompt,
-        image: `data:${image.mimeType};base64,${image.data}`
+        prompt: images.length > 1 ? `[Multi-Image Context: ${images.length} images provided] ${prompt}` : prompt,
+        image: `data:${primaryImage.mimeType};base64,${primaryImage.data}`
       }),
     });
 

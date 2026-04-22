@@ -3,6 +3,10 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "main": "api/index.ts",
+  "engines": {
+    "node": "20"
+  },
   "scripts": {
     "dev": "tsx api/index.ts",
     "build": "vite build",
@@ -26,6 +30,7 @@
     "express": "^4.21.2",
     "firebase": "^12.10.0",
     "firebase-admin": "^13.7.0",
+    "firebase-functions": "^6.6.0",
     "framer-motion": "^12.35.2",
     "katex": "^0.16.21",
     "lucide-react": "^0.546.0",
